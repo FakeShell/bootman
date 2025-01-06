@@ -1,7 +1,7 @@
 /**
  * Copyright 2022 Eugenio Paolantonio (g7)
  *
- * This file is part of furios-recovery, hereafter referred to as the program.
+ * This file is part of bootman, hereafter referred to as the program.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

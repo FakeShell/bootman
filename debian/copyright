@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: furios-recovery
-Source: https://github.com/FuriLabs/furios-recovery
+Upstream-Name: bootman
+Source: https://github.com/FuriLabs/bootman
 
 Files: *
 Copyright: 2021-2022, Johannes Marbach

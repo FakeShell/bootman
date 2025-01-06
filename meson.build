@@ -1,6 +1,6 @@
 # Copyright 2021 Clayton Craft
 #
-# This file is part of furios-recovery, hereafter referred to as the program.
+# This file is part of bootman, hereafter referred to as the program.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 
 
 project(
-  'furios-recovery',
+  'bootman',
   'c',
   version: '0.1.0',
   default_options: 'warning_level=3',
@@ -81,11 +81,11 @@ lvgl_sources = run_command('find-lvgl-sources.sh', 'lvgl', check: true).stdout()
 
 lv_drivers_sources = run_command('find-lvgl-sources.sh', 'lv_drivers', check: true).stdout().strip().split('\n')
 
-install_data(sources: 'furios-recovery.conf', install_dir : get_option('sysconfdir'))
+install_data(sources: 'bootman.conf', install_dir : get_option('sysconfdir'))
 
 
 executable(
-  'furios-recovery',
+  'bootman',
   sources: furios_recovery_sources + squeek2lvgl_sources + lvgl_sources + lv_drivers_sources,
   include_directories: ['lvgl', 'lv_drivers'],
   dependencies: furios_recovery_dependencies,

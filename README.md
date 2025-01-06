@@ -6,12 +6,12 @@ Recovery project for the initramfs based on [LVGL].
 # Usage
 
 ```
-$ furios-recovery --help
-Usage: furios-recovery [OPTION]
+$ bootman --help
+Usage: bootman [OPTION]
 
 Mandatory arguments to long options are mandatory for short options too.
   -c, --config=PATH      Locaton of the main config file. Defaults to
-                         /etc/furios-recovery.conf.
+                         /etc/bootman.conf.
   -C, --config-override  Location of the config override file. Values in
                          this file override values for the same keys in the
                          main config file. If specified multiple times, the
@@ -22,10 +22,10 @@ Mandatory arguments to long options are mandatory for short options too.
   -d  --dpi=N            Overrides the DPI
   -h, --help             Print this message and exit
   -v, --verbose          Enable more detailed logging output on STDERR
-  -V, --version          Print the furios-recovery version and exit
+  -V, --version          Print the bootman version and exit
 ```
 
-For an example configuration file, see [furios-recovery].
+For an example configuration file, see [bootman].
 
 # Development
 
@@ -45,8 +45,8 @@ For an example configuration file, see [furios-recovery].
 Some of FuriOS Recovery's dependencies are included as git submodules in this repository. You can clone the repository and initialise the submodules with
 
 ```
-$ git clone https://github.com/furilabs/furios-recovery.git
-$ cd furios-recovery
+$ git clone https://github.com/furilabs/bootman.git
+$ cd bootman
 $ git submodule init
 $ git submodule update
 ```
@@ -59,7 +59,7 @@ Once you have the sources, you can build the app and run it in a VT. Unless your
 $ meson _build
 $ meson compile -C _build
 $ sudo chvt 2
-$ sudo ./_build/furios-recovery
+$ sudo ./_build/bootman
 ```
 
 With meson <0\.55 use `ninja` instead of `meson compile`\.
@@ -154,9 +154,9 @@ The [FontAwesome] font is licensed under the Open Font License version 1.1.
 [lv_sim_emscripten]: https://github.com/lvgl/lv_sim_emscripten/blob/master/mouse_cursor_icon.c
 [lvgl]: https://github.com/lvgl/lvgl
 [online font converter]: https://lvgl.io/tools/fontconverter
-[open issues]: https://github.com/furilabs/furios-recovery/-/issues
+[open issues]: https://github.com/furilabs/bootman/-/issues
 [osk-sdl]: https://gitlab.com/postmarketOS/osk-sdl
 [screenshots]: ./screenshots
 [squeek2lvgl]: https://gitlab.com/cherrypicker/squeek2lvgl
 [squeekboard layouts]: https://gitlab.gnome.org/World/Phosh/squeekboard/-/tree/master/data/keyboards
-[furios-recovery.conf]: ./furios-recovery.conf
+[bootman.conf]: ./bootman.conf

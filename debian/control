@@ -1,4 +1,4 @@
-Source: furios-recovery
+Source: bootman
 Priority: optional
 Maintainer: Bardia Moshiri <fakeshell@bardia.tech>
 Build-Depends: debhelper-compat (= 13),
@@ -13,14 +13,12 @@ Build-Depends: debhelper-compat (= 13),
                libzstd-dev
 Standards-Version: 4.6.1.0
 Section: libs
-Vcs-Git: https://github.com/FuriLabs/furios-recovery.git
-Vcs-Browser: https://github.com/FuriLabs/furios-recovery
+Vcs-Git: https://github.com/FuriLabs/bootman.git
+Vcs-Browser: https://github.com/FuriLabs/bootman
 Rules-Requires-Root: no
 
-Package: furios-recovery
+Package: bootman
 Architecture: any
 Depends: ${misc:Depends},
          ${shlibs:Depends},
-         furios-terminal,
-         zstd
-Description: Recovery project for the initramfs based on LVGL
+Description: Boot manager for the initramfs based on LVGL

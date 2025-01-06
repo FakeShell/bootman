@@ -1,7 +1,7 @@
 /**
  * Copyright 2021 Johannes Marbach
  *
- * This file is part of furios-recovery, hereafter referred to as the program.
+ * This file is part of bootman, hereafter referred to as the program.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,7 @@
 
 #include "command_line.h"
 
-#include "furios-recovery.h"
+#include "bootman.h"
 
 #include <getopt.h>
 #include <stdio.h>
@@ -56,7 +56,7 @@ static void init_opts(cli_opts *opts) {
         printf("Could not allocate memory for config file paths\n");
         exit(EXIT_FAILURE);
     }
-    opts->config_files[0] = "/etc/furios-recovery.conf";
+    opts->config_files[0] = "/etc/bootman.conf";
 
     opts->hor_res = -1;
     opts->ver_res = -1;
@@ -68,10 +68,10 @@ static void init_opts(cli_opts *opts) {
 static void print_usage() {
     fprintf(stderr,
         /*-------------------------------- 78 CHARS --------------------------------*/
-        "Usage: furios-recovery [OPTION]\n"
+        "Usage: bootman [OPTION]\n"
         "Mandatory arguments to long options are mandatory for short options too.\n"
         "  -c, --config=PATH         Locaton of the main config file. Defaults to\n"
-        "                            /etc/furios-recovery.conf.\n"
+        "                            /etc/bootman.conf.\n"
         "  -C, --config-override     Location of the config override file. Values in\n"
         "                            this file override values for the same keys in\n"
         "                            the main config file. If specified multiple\n"
@@ -82,7 +82,7 @@ static void print_usage() {
         "                            pixels and vertically by Y pixels\n"
         "  -d  --dpi=N               Override the display's DPI value\n"
         "  -h, --help                Print this message and exit\n"
-        "  -V, --version             Print the furios-recovery version and exit\n");
+        "  -V, --version             Print the bootman version and exit\n");
         /*-------------------------------- 78 CHARS --------------------------------*/
 }
 
@@ -138,7 +138,7 @@ void cli_parse_opts(int argc, char *argv[], cli_opts *opts) {
             print_usage();
             exit(EXIT_SUCCESS);
         case 'V':
-            fprintf(stderr, "furios-recovery %s\n", VERSION);
+            fprintf(stderr, "bootman %s\n", VERSION);
             exit(0);
         default:
             print_usage();

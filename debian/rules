@@ -13,4 +13,4 @@ override_dh_installinitramfs:
 
 override_dh_auto_install:
 	dh_auto_install
-	cp $(CURDIR)/debian/furios-recovery.furios.conf $(CURDIR)/debian/furios-recovery/etc/furios-recovery.conf
+	cp $(CURDIR)/debian/bootman.furios.conf $(CURDIR)/debian/bootman/etc/bootman.conf

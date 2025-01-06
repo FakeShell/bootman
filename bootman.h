@@ -1,7 +1,7 @@
 /**
  * Copyright 2021 Johannes Marbach
  *
- * This file is part of furios-recovery, hereafter referred to as the program.
+ * This file is part of bootman, hereafter referred to as the program.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,4 +36,4 @@
 #define SYMBOL_ADJUST "\xef\x81\x82" // 0xF042 (https://fontawesome.com/v5.15/icons/adjust?style=solid)
 #define SYMBOL_CHEVRON_LEFT "\xef\x81\x93" // 0xF053 (https://fontawesome.com/v5/icons/chevron-left?style=solid&s=solid)
 
-#endif /* FURIOS_RECOVERY_H */
+#endif /* BOOTMAN_H */

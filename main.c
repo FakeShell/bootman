@@ -3,7 +3,7 @@
  * Copyright 2024 Bardia Moshiri
  * Copyright 2024 David Badiei
  *
- * This file is part of furios-recovery, hereafter referred to as the program.
+ * This file is part of bootman, hereafter referred to as the program.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@
 #include "command_line.h"
 #include "config.h"
 #include "indev.h"
-#include "furios-recovery.h"
+#include "bootman.h"
 #include "terminal.h"
 #include "theme.h"
 #include "themes.h"
@@ -1102,7 +1102,7 @@ static void shutdown(void) {
 static void* run_recovery(void* arg) {
     LV_UNUSED(arg);
 
-    char *recovery_args[] = {"/usr/bin/furios-recovery", NULL};
+    char *recovery_args[] = {"/usr/bin/bootman", NULL};
     execv(recovery_args[0], recovery_args);
     perror("execv");
     return NULL;
