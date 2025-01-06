@@ -47,22 +47,36 @@
 #include <signal.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <sys/reboot.h>
+#include <sys/mount.h>
+#include <sys/stat.h>
+
+#define MAX_PARTITIONS 50
+#define MAX_LINE_LENGTH 256
+#define PERSIST_PARTITION "/dev/disk/by-partlabel/furios_persist"
+#define MOUNT_POINT "/furios_persist"
+#define PARTITIONS_FILE "/furios_persist/partitions"
+
+typedef struct {
+    char *name;
+    char *label;
+} PartitionEntry;
+
+typedef struct {
+    PartitionEntry entries[MAX_PARTITIONS];
+    size_t count;
+} PartitionList;
 
 /**
  * Static variables
  */
-
 cli_opts cli_options;
 config_opts conf_opts;
-
 static lv_color_t *buf = NULL;
 static lv_disp_draw_buf_t disp_buf;
-
-bool is_alternate_theme = true;
-
-/* Main page */
+bool is_alternate_theme = false;
 lv_obj_t *reboot_btn;
 lv_obj_t *shutdown_btn;
 
@@ -106,6 +120,86 @@ static void reboot_btn_clicked_cb(lv_event_t *event);
 static void reboot_mbox_value_changed_cb(lv_event_t *event);
 
 /**
+ * Handle clicks on partition buttons
+ *
+ * @param event the event object containing partition data
+ */
+static void partition_btn_clicked_cb(lv_event_t *event);
+
+/**
+ * Check partition, read version, and flash boot images.
+ *
+ * @param partition_name name of the partition to boot
+ * @param error_msg buffer to store error message on failure
+ * @param error_msg_size size of error message buffer
+ * @return 0 on success, -1 on failure with error_msg set
+ */
+static int check_and_flash_partition(const char *partition_name, char *error_msg, size_t error_msg_size);
+
+/**
+ * Handle partition boot confirmation dialog events.
+ *
+ * @param event the event object
+ */
+static void partition_boot_confirm_cb(lv_event_t *event);
+
+/**
+ * Show error message dialog.
+ *
+ * @param message the error message to display
+ */
+static void show_error_dialog(const char *message);
+
+/**
+ * Handle error dialog button events.
+ *
+ * @param event the event object
+ */
+static void error_mbox_event_cb(lv_event_t *event);
+
+/**
+ * Read and parse partition entries from config file
+ *
+ * @return PartitionList* List of parsed partitions or NULL on error
+ */
+static PartitionList* read_partition_entries(void);
+
+/**
+ * Check if system is encrypted by looking for droidian_encrypted mapper.
+ *
+ * @return true if system is encrypted, false otherwise
+ */
+static bool is_encrypted(void);
+
+/**
+ * Free memory allocated for partition list
+ *
+ * @param list PartitionList to free
+ */
+static void free_partition_list(PartitionList *list);
+
+/**
+ * Create partition buttons based on parsed entries
+ *
+ * @param label_container Container to place buttons in
+ * @param list List of partitions to create buttons for
+ */
+static void create_partition_buttons(lv_obj_t *label_container, PartitionList *list);
+
+/**
+ * Create main UI
+ *
+ * @param hor_res horizontal resolution
+ * @param ver_res vertical resolution
+ */
+static void create_ui(uint32_t hor_res, uint32_t ver_res);
+
+/**
+ * Initialize UI
+ */
+static void initialize_ui(void);
+
+/**
  * Reboots the device.
  */
 static void reboot_device(void);
@@ -121,26 +215,6 @@ static void shutdown(void);
  * @param signum the signal's number
  */
 static void sigaction_handler(int signum);
-
-/**
- * Create all buttons in the label container
- *
- * @param label container to create buttons in
- */
-static void create_buttons(lv_obj_t *label_container);
-
-/**
- * Create main UI
- *
- * @param horizantal resolution
- * @param vertical resolution
- */
-static void create_ui(uint32_t hor_res, uint32_t ver_res);
-
-/**
- * Initialize recovery UI
- */
-static void initialize_recovery_ui(void);
 
 /**
  * Static functions
@@ -161,9 +235,8 @@ static void shutdown_btn_clicked_cb(lv_event_t *event) {
 
 static void shutdown_mbox_value_changed_cb(lv_event_t *event) {
     lv_obj_t *mbox = lv_event_get_current_target(event);
-    if (lv_msgbox_get_active_btn(mbox) == 0) {
+    if (lv_msgbox_get_active_btn(mbox) == 0)
         shutdown();
-    }
     lv_msgbox_close(mbox);
 }
 
@@ -178,9 +251,164 @@ static void reboot_btn_clicked_cb(lv_event_t *event) {
 
 static void reboot_mbox_value_changed_cb(lv_event_t *event) {
     lv_obj_t *mbox = lv_event_get_current_target(event);
-    if (lv_msgbox_get_active_btn(mbox) == 0) {
+    if (lv_msgbox_get_active_btn(mbox) == 0)
         reboot_device();
+    lv_msgbox_close(mbox);
+}
+
+static void partition_btn_clicked_cb(lv_event_t *e) {
+    char *partition_name = (char *)lv_event_get_user_data(e);
+    if (partition_name) {
+        static const char *btns[] = { "Yes", "No", "" };
+        lv_obj_t *mbox = lv_msgbox_create(NULL, NULL, "Boot this partition?", btns, false);
+        lv_obj_set_size(mbox, 400, LV_SIZE_CONTENT);
+        lv_obj_add_event_cb(mbox, partition_boot_confirm_cb, LV_EVENT_VALUE_CHANGED, partition_name);
+        lv_obj_center(mbox);
     }
+}
+
+static int check_and_flash_partition(const char *partition_name, char *error_msg, size_t error_msg_size) {
+    char lvm_path[256];
+    char mount_point[] = "/mnt_tmp";
+    char version[256];
+    struct stat st;
+    char cmd[1024];
+
+    snprintf(lvm_path, sizeof(lvm_path), "/dev/droidian/%s", partition_name);
+    if (stat(lvm_path, &st) != 0) {
+        snprintf(error_msg, error_msg_size, "Partition %s does not exist", lvm_path);
+        return -1;
+    }
+
+    if (stat(mount_point, &st) != 0) {
+        if (mkdir(mount_point, 0755) != 0) {
+            snprintf(error_msg, error_msg_size, "Failed to create mount point: %s", strerror(errno));
+            return -1;
+        }
+    }
+
+    if (mount(lvm_path, mount_point, "ext4", 0, NULL) != 0) {
+        snprintf(error_msg, error_msg_size, "Failed to mount partition: %s", strerror(errno));
+        return -1;
+    }
+
+    /* this was added on 13.0.6 and thus the boot manager will only work with versions 13.0.6 or newer */
+    char config_path[512];
+    snprintf(config_path, sizeof(config_path), "%s/usr/lib/furios/device/flash-bootimage.conf", mount_point);
+
+    FILE *fp = fopen(config_path, "r");
+    if (!fp) {
+        snprintf(error_msg, error_msg_size, "Config file not found: %s", config_path);
+        umount(mount_point);
+        return -1;
+    }
+
+    char line[256];
+    bool version_found = false;
+    while (fgets(line, sizeof(line), fp)) {
+        if (strncmp(line, "VERSION=", 8) == 0) {
+            strncpy(version, line + 8, sizeof(version) - 1);
+            version[strcspn(version, "\n")] = 0;
+            version_found = true;
+            break;
+        }
+    }
+
+    fclose(fp);
+
+    if (!version_found) {
+        snprintf(error_msg, error_msg_size, "VERSION not found in config file");
+        umount(mount_point);
+        return -1;
+    }
+
+    char boot_image_path[512];
+    snprintf(boot_image_path, sizeof(boot_image_path), "%s/boot/boot.img-%s", mount_point, version);
+
+    if (stat(boot_image_path, &st) != 0) {
+        snprintf(error_msg, error_msg_size, "Boot image not found: %s", boot_image_path);
+        umount(mount_point);
+        return -1;
+    }
+
+    char dtbo_image_path[512];
+    snprintf(dtbo_image_path, sizeof(dtbo_image_path), "%s/boot/dtbo.img-%s", mount_point, version);
+
+    if (stat(dtbo_image_path, &st) != 0) {
+        snprintf(error_msg, error_msg_size, "DTBO image not found: %s", dtbo_image_path);
+        umount(mount_point);
+        return -1;
+    }
+
+    snprintf(cmd, sizeof(cmd), "dd if='%s' of=/dev/disk/by-partlabel/boot_a bs=4M", boot_image_path);
+    printf("Executing: %s\n", cmd);
+    if (system(cmd) != 0) {
+        snprintf(error_msg, error_msg_size, "Failed to flash boot image");
+        umount(mount_point);
+        return -1;
+    }
+
+    sync();
+
+    snprintf(cmd, sizeof(cmd), "dd if='%s' of=/dev/disk/by-partlabel/dtbo_a bs=4M", dtbo_image_path);
+    printf("Executing: %s\n", cmd);
+    if (system(cmd) != 0) {
+        snprintf(error_msg, error_msg_size, "Failed to flash dtbo image");
+        umount(mount_point);
+        return -1;
+    }
+
+    sync();
+
+    FILE *next_boot = fopen("/furios_persist/next-boot", "w");
+    if (!next_boot) {
+        snprintf(error_msg, error_msg_size, "Failed to create next-boot file");
+        umount(mount_point);
+        return -1;
+    }
+
+    fprintf(next_boot, "%s", partition_name);
+    fclose(next_boot);
+    sync();
+
+    umount(mount_point);
+    return 0;
+}
+
+static void partition_boot_confirm_cb(lv_event_t *event) {
+    lv_obj_t *mbox = lv_event_get_current_target(event);
+    char *partition_name = (char *)lv_event_get_user_data(event);
+
+    if (lv_msgbox_get_active_btn(mbox) == 0) {
+        printf("Preparing to boot partition: %s\n", partition_name);
+
+        char error_msg[512];
+        if (check_and_flash_partition(partition_name, error_msg, sizeof(error_msg)) == 0) {
+            printf("Successfully prepared boot for partition: %s\n", partition_name);
+            static const char *btns[] = {"OK", ""};
+            lv_obj_t *success_mbox = lv_msgbox_create(NULL, "Success", "Boot partition prepared successfully. System will now reboot.", btns, false);
+            lv_obj_set_size(success_mbox, 400, LV_SIZE_CONTENT);
+            lv_obj_center(success_mbox);
+            lv_obj_add_event_cb(success_mbox, reboot_mbox_value_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
+        } else {
+            show_error_dialog(error_msg);
+        }
+    }
+
+    free(partition_name);
+    lv_msgbox_close(mbox);
+}
+
+static void show_error_dialog(const char *message) {
+    static const char *btns[] = {"OK", ""};
+    lv_obj_t *error_mbox = lv_msgbox_create(NULL, "Error", message, btns, false);
+    lv_obj_set_size(error_mbox, 400, LV_SIZE_CONTENT);
+    lv_obj_add_event_cb(error_mbox, error_mbox_event_cb, LV_EVENT_VALUE_CHANGED, NULL);
+    lv_obj_center(error_mbox);
+}
+
+static void error_mbox_event_cb(lv_event_t *event) {
+    lv_obj_t *mbox = lv_event_get_current_target(event);
     lv_msgbox_close(mbox);
 }
 
@@ -200,26 +428,148 @@ static void sigaction_handler(int signum) {
     exit(0);
 }
 
-static void create_buttons(lv_obj_t *label_container) {
-    /* Reboot button */
+static bool is_encrypted(void) {
+    struct stat st;
+    return (stat("/dev/mapper/droidian_encrypted", &st) == 0);
+}
+
+static void free_partition_list(PartitionList *list) {
+    for (size_t i = 0; i < list->count; i++) {
+        free(list->entries[i].name);
+        free(list->entries[i].label);
+    }
+}
+
+static PartitionList* read_partition_entries(void) {
+    struct stat st;
+    PartitionList *list = calloc(1, sizeof(PartitionList));
+    if (!list)
+        return NULL;
+
+    printf("Reading partition entries...\n");
+
+    if (stat(PERSIST_PARTITION, &st) != 0) {
+        printf("Persist partition not found\n");
+        free(list);
+        return NULL;
+    }
+
+    if (stat(MOUNT_POINT, &st) != 0) {
+        if (mkdir(MOUNT_POINT, 0755) != 0) {
+            printf("Failed to create mount point: %s\n", strerror(errno));
+            free(list);
+            return NULL;
+        }
+    }
+
+    FILE *mtab = fopen("/proc/mounts", "r");
+    char line[256];
+    int is_mounted = 0;
+
+    while (fgets(line, sizeof(line), mtab)) {
+        if (strstr(line, MOUNT_POINT)) {
+            is_mounted = 1;
+            break;
+        }
+    }
+
+    fclose(mtab);
+
+    if (!is_mounted) {
+        if (mount(PERSIST_PARTITION, MOUNT_POINT, "ext4", 0, NULL) != 0) {
+            printf("Failed to mount partition: %s\n", strerror(errno));
+            free(list);
+            return NULL;
+        }
+        printf("Mounted %s at %s\n", PERSIST_PARTITION, MOUNT_POINT);
+    }
+
+    FILE *fp = fopen(PARTITIONS_FILE, "r");
+    if (!fp) {
+        printf("Failed to open partitions file: %s\n", strerror(errno));
+        if (!is_mounted) umount(MOUNT_POINT);
+        free(list);
+        return NULL;
+    }
+
+    printf("Parsing partition entries:\n");
+    char buffer[MAX_LINE_LENGTH];
+    while (fgets(buffer, sizeof(buffer), fp) && list->count < MAX_PARTITIONS) {
+        if (buffer[0] == '\n' || buffer[0] == '\0')
+            continue;
+        buffer[strcspn(buffer, "\n")] = 0;
+
+        printf("Found entry: %s\n", buffer);
+
+        char *str = buffer;
+        char *token;
+        char *saveptr;
+
+        token = strtok_r(str, ":", &saveptr);
+        if (!token)
+            continue;
+
+        list->entries[list->count].name = strdup(token);
+
+        token = strtok_r(NULL, "", &saveptr);
+        if (!token)
+            list->entries[list->count].label = strdup(list->entries[list->count].name);
+        else
+            list->entries[list->count].label = strdup(token);
+
+        printf("Added partition %zu: name='%s', label='%s'\n",
+               list->count,
+               list->entries[list->count].name,
+               list->entries[list->count].label);
+
+        list->count++;
+    }
+
+    printf("Found total %zu partitions\n", list->count);
+    fclose(fp);
+    return list;
+}
+
+static void create_partition_buttons(lv_obj_t *label_container, PartitionList *list) {
+    if (!list)
+        return;
+
+    int base_y_offset = 150;
+    int button_spacing = 120;
+
+    for (size_t i = 0; i < list->count; i++) {
+        lv_obj_t *btn = lv_btn_create(label_container);
+        lv_obj_set_width(btn, LV_PCT(100));
+        lv_obj_set_height(btn, 100);
+
+        lv_obj_t *btn_label = lv_label_create(btn);
+        lv_label_set_text(btn_label, list->entries[i].label);
+
+        char *partition_name = strdup(list->entries[i].name);
+        lv_obj_add_event_cb(btn, partition_btn_clicked_cb, LV_EVENT_CLICKED, partition_name);
+
+        lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, base_y_offset + (i * button_spacing));
+        lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    }
+
     reboot_btn = lv_btn_create(label_container);
     lv_obj_set_width(reboot_btn, LV_PCT(100));
     lv_obj_set_height(reboot_btn, 100);
-    lv_obj_t *reboot_btn_label = lv_label_create(reboot_btn);
-    lv_label_set_text(reboot_btn_label, "Reboot");
+    lv_obj_t *reboot_label = lv_label_create(reboot_btn);
+    lv_label_set_text(reboot_label, "Reboot");
     lv_obj_add_event_cb(reboot_btn, reboot_btn_clicked_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_align(reboot_btn, LV_ALIGN_TOP_MID, 0, 600);
+    lv_obj_align(reboot_btn, LV_ALIGN_TOP_MID, 0, base_y_offset + (list->count * button_spacing));
     lv_obj_set_flex_flow(reboot_btn, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(reboot_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    /* Shutdown button */
     shutdown_btn = lv_btn_create(label_container);
     lv_obj_set_width(shutdown_btn, LV_PCT(100));
     lv_obj_set_height(shutdown_btn, 100);
-    lv_obj_t *shutdown_btn_label = lv_label_create(shutdown_btn);
-    lv_label_set_text(shutdown_btn_label, "Shutdown");
+    lv_obj_t *shutdown_label = lv_label_create(shutdown_btn);
+    lv_label_set_text(shutdown_label, "Shutdown");
     lv_obj_add_event_cb(shutdown_btn, shutdown_btn_clicked_cb, LV_EVENT_CLICKED, NULL);
-    lv_obj_align(shutdown_btn, LV_ALIGN_TOP_MID, 0, 700);
+    lv_obj_align(shutdown_btn, LV_ALIGN_TOP_MID, 0, base_y_offset + ((list->count + 1) * button_spacing));
     lv_obj_set_flex_flow(shutdown_btn, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(shutdown_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 }
@@ -227,6 +577,12 @@ static void create_buttons(lv_obj_t *label_container) {
 static void create_ui(uint32_t hor_res, uint32_t ver_res) {
     /* Clear the screen */
     lv_obj_clean(lv_scr_act());
+
+    /* Check for encryption */
+    if (is_encrypted()) {
+        printf("System is encrypted, cannot proceed\n");
+        exit(1);
+    }
 
     /* Figure out a few numbers for sizing and positioning */
     const int keyboard_height = ver_res > hor_res ? ver_res / 3 : ver_res / 2;
@@ -258,11 +614,19 @@ static void create_ui(uint32_t hor_res, uint32_t ver_res) {
     lv_label_set_text(furios_label, "FuriOS Boot Manager");
     lv_obj_align(furios_label, LV_ALIGN_BOTTOM_MID, 0, 0);
 
-    /* Create buttons */
-    create_buttons(label_container);
+    /* Create partition buttons */
+    PartitionList *list = read_partition_entries();
+    create_partition_buttons(label_container, list);
+    if (list) {
+        free_partition_list(list);
+        free(list);
+    } else {
+        printf("No partitions found in persist");
+        exit(1);
+    }
 }
 
-static void initialize_recovery_ui(void) {
+static void initialize_ui(void) {
     /* Initialise LVGL and set up logging callback */
     lv_init();
 
@@ -343,7 +707,6 @@ static void initialize_recovery_ui(void) {
 /**
  * Main
  */
-
 int main(int argc, char *argv[]) {
     /* Parse command line options */
     cli_parse_opts(argc, argv, &cli_options);
@@ -359,7 +722,7 @@ int main(int argc, char *argv[]) {
     sigaction(SIGINT, &action, NULL);
     sigaction(SIGTERM, &action, NULL);
 
-    initialize_recovery_ui();
+    initialize_ui();
 
     /* Run lvgl in "tickless" mode */
     while(1) {
@@ -369,7 +732,6 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
 
 /**
  * Tick generation
