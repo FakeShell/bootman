@@ -21,7 +21,6 @@ Mandatory arguments to long options are mandatory for short options too.
                          vertical pixels
   -d  --dpi=N            Overrides the DPI
   -h, --help             Print this message and exit
-  -v, --verbose          Enable more detailed logging output on STDERR
   -V, --version          Print the bootman version and exit
 ```
 
@@ -34,7 +33,6 @@ For an example configuration file, see [bootman].
 - [inih]
 - [lvgl] (git submodule / linked statically)
 - [lv_drivers] (git submodule / linked statically)
-- [squeek2lvgl] (git submodule / linked statically)
 - [libinput]
 - [libxkbcommon]
 - [libdrm] (optional, required for the DRM backend)
@@ -42,7 +40,7 @@ For an example configuration file, see [bootman].
 
 ## Building & running
 
-Some of FuriOS Recovery's dependencies are included as git submodules in this repository. You can clone the repository and initialise the submodules with
+Some of bootman's dependencies are included as git submodules in this repository. You can clone the repository and initialise the submodules with
 
 ```
 $ git clone https://github.com/furilabs/bootman.git
@@ -89,7 +87,7 @@ The backend can be switched at runtime by modifying the `general.backend` config
 
 ## Fonts
 
-In order to work with [LVGL], fonts need to be converted to bitmaps, stored as C arrays. FuriOS Recovery currently uses a combination of the [OpenSans] font for text and the [FontAwesome] font for pictograms. For both fonts only limited character ranges are included to reduce the binary size. To (re)generate the C file containing the combined font, run the following command
+In order to work with [LVGL], fonts need to be converted to bitmaps, stored as C arrays. bootman currently uses a combination of the [OpenSans] font for text and the [FontAwesome] font for pictograms. For both fonts only limited character ranges are included to reduce the binary size. To (re)generate the C file containing the combined font, run the following command
 
 ```
 $ ./regenerate-fonts.sh
@@ -111,19 +109,9 @@ Below is a short explanation of the different unicode ranges used above.
   - [arrow-alt-circle-up](https://fontawesome.com/v5/icons/arrow-alt-circle-up) (`0xF35B`)
   - [chevron-left](https://fontawesome.com/v5/icons/chevron-left) (`0xF053`)
 
-## Keyboard layouts
-
-FuriOS Recovery uses [squeekboard layouts] converted to C via [squeek2lvgl]. To regenerate the layouts, ensure that you have pipenv installed (e.g. via `pip install --user pipenv`) and then run
-
-```
-$ ./regenerate-layouts.sh
-```
-
-from the root of the repository.
-
 # License
 
-FuriOS Recovery is licensed under the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+bootman is licensed under the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 
 The [OpenSans] font is licensed under the Apache License 2.0.
 
@@ -155,8 +143,4 @@ The [FontAwesome] font is licensed under the Open Font License version 1.1.
 [lvgl]: https://github.com/lvgl/lvgl
 [online font converter]: https://lvgl.io/tools/fontconverter
 [open issues]: https://github.com/furilabs/bootman/-/issues
-[osk-sdl]: https://gitlab.com/postmarketOS/osk-sdl
-[screenshots]: ./screenshots
-[squeek2lvgl]: https://gitlab.com/cherrypicker/squeek2lvgl
-[squeekboard layouts]: https://gitlab.gnome.org/World/Phosh/squeekboard/-/tree/master/data/keyboards
 [bootman.conf]: ./bootman.conf

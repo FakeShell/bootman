@@ -1,7 +1,7 @@
 /**
  * Copyright 2021 Johannes Marbach
  *
- * This file is part of bootman, hereafter referred to as the program.
+ * This file is part of furios-recovery, hereafter referred to as the program.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,6 @@
 
 #include "theme.h"
 
-#include "sq2lv_layouts.h"
 #include "bootman.h"
 
 #include "lvgl/lvgl.h"
@@ -38,7 +37,6 @@ static struct {
     lv_style_t widget;
     lv_style_t window;
     lv_style_t header;
-    lv_style_t keyboard;
     lv_style_t key;
     lv_style_t button;
     lv_style_t button_pressed;
@@ -87,13 +85,6 @@ static void reset_style(lv_style_t *style);
  */
 static void apply_theme_cb(lv_theme_t *theme, lv_obj_t *obj);
 
-/**
- * Handle LV_EVENT_DRAW_PART_BEGIN events from the keyboard widget.
- *
- * @param event the event object
- */
-static void keyboard_draw_part_begin_cb(lv_event_t *event);
-
 
 /**
  * Static functions
@@ -101,7 +92,6 @@ static void keyboard_draw_part_begin_cb(lv_event_t *event);
 
 static void init_styles(const theme *theme) {
     reset_style(&(styles.widget));
-    lv_style_set_text_font(&(styles.widget), &font_32);
 
     reset_style(&(styles.window));
     lv_style_set_bg_opa(&(styles.window), LV_OPA_COVER);
@@ -115,21 +105,6 @@ static void init_styles(const theme *theme) {
     lv_style_set_border_color(&(styles.header), lv_color_hex(theme->header.border_color));
     lv_style_set_pad_all(&(styles.header), lv_dpx(theme->header.pad));
     lv_style_set_pad_gap(&(styles.header), lv_dpx(theme->header.gap));
-
-    reset_style(&(styles.keyboard));
-    lv_style_set_bg_opa(&(styles.keyboard), LV_OPA_COVER);
-    lv_style_set_bg_color(&(styles.keyboard), lv_color_hex(theme->keyboard.bg_color));
-    lv_style_set_border_side(&(styles.keyboard), LV_BORDER_SIDE_TOP);
-    lv_style_set_border_width(&(styles.keyboard), lv_dpx(theme->keyboard.border_width));
-    lv_style_set_border_color(&(styles.keyboard), lv_color_hex(theme->keyboard.border_color));
-    lv_style_set_pad_all(&(styles.keyboard), lv_dpx(theme->keyboard.pad));
-    lv_style_set_pad_gap(&(styles.keyboard), lv_dpx(theme->keyboard.gap));
-
-    reset_style(&(styles.key));
-    lv_style_set_bg_opa(&(styles.key), LV_OPA_COVER);
-    lv_style_set_border_side(&(styles.key), LV_BORDER_SIDE_FULL);
-    lv_style_set_border_width(&(styles.key), lv_dpx(theme->keyboard.keys.border_width));
-    lv_style_set_radius(&(styles.key), lv_dpx(theme->keyboard.keys.corner_radius));
 
     reset_style(&(styles.button));
     lv_style_set_text_color(&(styles.button), lv_color_hex(theme->button.normal.fg_color));
@@ -256,12 +231,6 @@ static void apply_theme_cb(lv_theme_t *theme, lv_obj_t *obj) {
         return;
     }
 
-    if (lv_obj_check_type(obj, &lv_keyboard_class)) {
-        lv_obj_add_style(obj, &(styles.keyboard), 0);
-        lv_obj_add_style(obj, &(styles.key), LV_PART_ITEMS);
-        return;
-    }
-
     if (lv_obj_check_type(obj, &lv_btn_class)) {
         lv_obj_add_style(obj, &(styles.button), 0);
         lv_obj_add_style(obj, &(styles.button_pressed), LV_STATE_PRESSED);
@@ -334,42 +303,10 @@ static void apply_theme_cb(lv_theme_t *theme, lv_obj_t *obj) {
     }
 }
 
-static void keyboard_draw_part_begin_cb(lv_event_t *event) {
-    lv_obj_t *obj = lv_event_get_target(event);
-    lv_btnmatrix_t *btnm = (lv_btnmatrix_t *)obj;
-    lv_obj_draw_part_dsc_t *dsc = lv_event_get_param(event);
-
-    if (dsc->part != LV_PART_ITEMS) {
-        return;
-    }
-
-    theme_key *key = NULL;
-
-    if ((btnm->ctrl_bits[dsc->id] & SQ2LV_CTRL_MOD_INACTIVE) == SQ2LV_CTRL_MOD_INACTIVE) {
-        key = &(current_theme.keyboard.keys.key_mod_inact);
-    } else if ((btnm->ctrl_bits[dsc->id] & SQ2LV_CTRL_MOD_ACTIVE) == SQ2LV_CTRL_MOD_ACTIVE) {
-        key = &(current_theme.keyboard.keys.key_mod_act);
-    } else if ((btnm->ctrl_bits[dsc->id] & SQ2LV_CTRL_NON_CHAR) == SQ2LV_CTRL_NON_CHAR) {
-        key = &(current_theme.keyboard.keys.key_non_char);
-    } else {
-        key = &(current_theme.keyboard.keys.key_char);
-    }
-
-    bool pressed = lv_btnmatrix_get_selected_btn(obj) == dsc->id && lv_obj_has_state(obj, LV_STATE_PRESSED);
-
-    dsc->label_dsc->color = lv_color_hex((pressed ? key->pressed : key->normal).fg_color);
-    dsc->rect_dsc->bg_color = lv_color_hex((pressed ? key->pressed : key->normal).bg_color);
-    dsc->rect_dsc->border_color = lv_color_hex((pressed ? key->pressed : key->normal).border_color);
-}
-
 
 /**
  * Public functions
  */
-
-void theme_prepare_keyboard(lv_obj_t *keyboard) {
-    lv_obj_add_event_cb(keyboard, keyboard_draw_part_begin_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
-}
 
 void theme_apply(const theme *theme) {
     if (!theme) {
@@ -378,9 +315,6 @@ void theme_apply(const theme *theme) {
     }
 
     lv_theme.disp = NULL;
-    lv_theme.font_small = &font_32;
-    lv_theme.font_normal = &font_32;
-    lv_theme.font_large = &font_32;
     lv_theme.apply_cb = apply_theme_cb;
 
     current_theme = *theme;

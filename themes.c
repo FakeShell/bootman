@@ -1,7 +1,7 @@
 /**
  * Copyright 2021 Johannes Marbach
  *
- * This file is part of bootman, hereafter referred to as the program.
+ * This file is part of furios-recovery, hereafter referred to as the program.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,65 +38,6 @@ static const theme themes_breezy_light = {
         .border_color = 0xbdc3c7,
         .pad = 10,
         .gap = 10
-    },
-    .keyboard = {
-        .bg_color = 0xfcfcfc,
-        .border_width = 1,
-        .border_color = 0xbdc3c7,
-        .pad = 10,
-        .gap = 10,
-        .keys = {
-            .border_width = 1,
-            .corner_radius = 5,
-            .key_char = {
-                .normal = {
-                    .fg_color = 0x232629,
-                    .bg_color = 0xeff0f1,
-                    .border_color = 0xbdc3c7
-                },
-                .pressed = {
-                    .fg_color = 0x232629,
-                    .bg_color = 0x3daee9,
-                    .border_color = 0x2980b9
-                }
-            },
-            .key_non_char = {
-                .normal = {
-                    .fg_color = 0x232629,
-                    .bg_color = 0xbdc3c7,
-                    .border_color = 0x7f8c8d
-                },
-                .pressed = {
-                    .fg_color = 0x232629,
-                    .bg_color = 0x3daee9,
-                    .border_color = 0x2980b9
-                }
-            },
-            .key_mod_act = {
-                .normal = {
-                    .fg_color = 0x232629,
-                    .bg_color = 0x3daee9,
-                    .border_color = 0x2980b9
-                },
-                .pressed = {
-                    .fg_color = 0x232629,
-                    .bg_color = 0x3daee9,
-                    .border_color = 0x2980b9
-                }
-            },
-            .key_mod_inact = {
-                .normal = {
-                    .fg_color = 0x232629,
-                    .bg_color = 0xbdc3c7,
-                    .border_color = 0x7f8c8d
-                },
-                .pressed = {
-                    .fg_color = 0x232629,
-                    .bg_color = 0x3daee9,
-                    .border_color = 0x2980b9
-                }
-            }
-        }
     },
     .button = {
         .border_width = 1,
@@ -197,65 +138,6 @@ static const theme themes_breezy_dark = {
         .pad = 10,
         .gap = 10
     },
-    .keyboard = {
-        .bg_color = 0x232629,
-        .border_width = 1,
-        .border_color = 0x7f8c8d,
-        .pad = 10,
-        .gap = 10,
-        .keys = {
-            .border_width = 1,
-            .corner_radius = 5,
-            .key_char = {
-                .normal = {
-                    .fg_color = 0xeff0f1,
-                    .bg_color = 0x31363b,
-                    .border_color = 0xbdc3c7
-                },
-                .pressed = {
-                    .fg_color = 0xeff0f1,
-                    .bg_color = 0x3daee9,
-                    .border_color = 0x2980b9
-                }
-            },
-            .key_non_char = {
-                .normal = {
-                    .fg_color = 0xeff0f1,
-                    .bg_color = 0x232629,
-                    .border_color = 0x7f8c8d
-                },
-                .pressed = {
-                    .fg_color = 0xeff0f1,
-                    .bg_color = 0x3daee9,
-                    .border_color = 0x2980b9
-                }
-            },
-            .key_mod_act = {
-                .normal = {
-                    .fg_color = 0xeff0f1,
-                    .bg_color = 0x3daee9,
-                    .border_color = 0x2980b9
-                },
-                .pressed = {
-                    .fg_color = 0xeff0f1,
-                    .bg_color = 0x3daee9,
-                    .border_color = 0x2980b9
-                }
-            },
-            .key_mod_inact = {
-                .normal = {
-                    .fg_color = 0xeff0f1,
-                    .bg_color = 0x232629,
-                    .border_color = 0x7f8c8d
-                },
-                .pressed = {
-                    .fg_color = 0xeff0f1,
-                    .bg_color = 0x3daee9,
-                    .border_color = 0x2980b9
-                }
-            }
-        }
-    },
     .button = {
         .border_width = 1,
         .corner_radius = 5,
@@ -354,65 +236,6 @@ static const theme themes_pmos_light = {
         .pad = 20,
         .gap = 10
     },
-    .keyboard = {
-        .bg_color = 0xd8e6e9,
-        .border_width = 2,
-        .border_color = 0x97bcc4,
-        .pad = 20,
-        .gap = 10,
-        .keys = {
-            .border_width = 1,
-            .corner_radius = 3,
-            .key_char = {
-                .normal = {
-                    .fg_color = 0x070c0d,
-                    .bg_color = 0xd8e6e9,
-                    .border_color = 0x97bcc4
-                },
-                .pressed = {
-                    .fg_color = 0xf2f7f8,
-                    .bg_color = 0x009900,
-                    .border_color = 0x009900
-                }
-            },
-            .key_non_char = {
-                .normal = {
-                    .fg_color = 0x070c0d,
-                    .bg_color = 0xbed5da,
-                    .border_color = 0xb1cdd3
-                },
-                .pressed = {
-                    .fg_color = 0xf2f7f8,
-                    .bg_color = 0x009900,
-                    .border_color = 0x009900
-                }
-            },
-            .key_mod_act = {
-                .normal = {
-                    .fg_color = 0x009900,
-                    .bg_color = 0xbed5da,
-                    .border_color = 0x009900
-                },
-                .pressed = {
-                    .fg_color = 0xf2f7f8,
-                    .bg_color = 0x009900,
-                    .border_color = 0x009900
-                }
-            },
-            .key_mod_inact = {
-                .normal = {
-                    .fg_color = 0x070c0d,
-                    .bg_color = 0xbed5da,
-                    .border_color = 0xb1cdd3
-                },
-                .pressed = {
-                    .fg_color = 0xf2f7f8,
-                    .bg_color = 0x009900,
-                    .border_color = 0x009900
-                }
-            }
-        }
-    },
     .button = {
         .border_width = 1,
         .corner_radius = 3,
@@ -510,65 +333,6 @@ static const theme themes_pmos_dark = {
         .border_color = 0x070c0d,
         .pad = 20,
         .gap = 10
-    },
-    .keyboard = {
-        .bg_color = 0x162427,
-        .border_width = 2,
-        .border_color = 0x395e66,
-        .pad = 20,
-        .gap = 10,
-        .keys = {
-            .border_width = 1,
-            .corner_radius = 3,
-            .key_char = {
-                .normal = {
-                    .fg_color = 0xf2f7f8,
-                    .bg_color = 0x162427,
-                    .border_color = 0x395e66
-                },
-                .pressed = {
-                    .fg_color = 0xf2f7f8,
-                    .bg_color = 0x009900,
-                    .border_color = 0x009900
-                }
-            },
-            .key_non_char = {
-                .normal = {
-                    .fg_color = 0xf2f7f8,
-                    .bg_color = 0x253c41,
-                    .border_color = 0x2c484e
-                },
-                .pressed = {
-                    .fg_color = 0xf2f7f8,
-                    .bg_color = 0x009900,
-                    .border_color = 0x009900
-                }
-            },
-            .key_mod_act = {
-                .normal = {
-                    .fg_color = 0x009900,
-                    .bg_color = 0x253c41,
-                    .border_color = 0x009900
-                },
-                .pressed = {
-                    .fg_color = 0xf2f7f8,
-                    .bg_color = 0x009900,
-                    .border_color = 0x009900
-                }
-            },
-            .key_mod_inact = {
-                .normal = {
-                    .fg_color = 0xf2f7f8,
-                    .bg_color = 0x253c41,
-                    .border_color = 0x2c484e
-                },
-                .pressed = {
-                    .fg_color = 0xf2f7f8,
-                    .bg_color = 0x009900,
-                    .border_color = 0x009900
-                }
-            }
-        }
     },
     .button = {
         .border_width = 1,

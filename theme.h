@@ -1,7 +1,7 @@
 /**
  * Copyright 2021 Johannes Marbach
  *
- * This file is part of bootman, hereafter referred to as the program.
+ * This file is part of furios-recovery, hereafter referred to as the program.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -68,16 +68,6 @@ typedef struct {
     theme_key key_mod_act;
     theme_key key_mod_inact;
 } theme_keys;
-
-/* Keyboard theme */
-typedef struct {
-    uint32_t bg_color;
-    lv_coord_t border_width;
-    uint32_t border_color;
-    lv_coord_t pad;
-    lv_coord_t gap;
-    theme_keys keys;
-} theme_keyboard;
 
 /* Button theme for one specific button state */
 typedef struct {
@@ -179,7 +169,6 @@ typedef struct {
     char *name;
     theme_window window;
     theme_header header;
-    theme_keyboard keyboard;
     theme_button button;
     theme_textarea textarea;
     theme_dropdown dropdown;
@@ -187,13 +176,6 @@ typedef struct {
     theme_msgbox msgbox;
     theme_bar bar;
 } theme;
-
-/**
- * Prepare a keyboard widget to be themed with a theme.
- *
- * @param keyboard keyboard widget
- */
-void theme_prepare_keyboard(lv_obj_t *keyboard);
 
 /**
  * Apply a UI theme.

@@ -25,8 +25,6 @@
 
 #include "themes.h"
 
-#include "sq2lv_layouts.h"
-
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -41,28 +39,6 @@ typedef struct {
     /* Timeout (in seconds) - once elapsed, the device will shutdown. 0 (default) to disable */
     uint16_t timeout;
 } config_opts_general;
-
-/**
- * Options related to the keyboard
- */
-typedef struct {
-    /* If true, hide the keyboard on launch when a hardware keyboard is connected */
-    bool autohide;
-    /* Keyboard layout */
-    sq2lv_layout_id_t layout_id;
-    /* If true, display key popovers on press */
-    bool popovers;
-} config_opts_keyboard;
-
-/**
- * Options related to the password textarea
- */
-typedef struct {
-    /* If true, disguise the entered text with dots */
-    bool obscured;
-    /* The character to use for disguising the entered text */
-    const char *bullet;
-} config_opts_textarea;
 
 /**
  * Options related to the theme
@@ -92,10 +68,6 @@ typedef struct {
 typedef struct {
     /* General options */
     config_opts_general general;
-    /* Options related to the keyboard */
-    config_opts_keyboard keyboard;
-    /* Options related to the password textarea */
-    config_opts_textarea textarea;
     /* Options related to the theme */
     config_opts_theme theme;
     /* Options related to input devices */

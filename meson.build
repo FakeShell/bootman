@@ -36,24 +36,15 @@ furios_recovery_sources = [
   'font_32.c',
   'indev.c',
   'main.c',
-  'sq2lv_layouts.c',
   'terminal.c',
   'theme.c',
   'themes.c',
-  'lvm.c',
-  'images/furilabs_black.c',
-  'images/furilabs_white.c',
-]
-
-squeek2lvgl_sources = [
-  'squeek2lvgl/sq2lv.c',
 ]
 
 furios_recovery_dependencies = [
   dependency('inih', static: enable_static),
   dependency('libinput', static: enable_static),
   dependency('xkbcommon', static: enable_static),
-  dependency('libcryptsetup', static: enable_static),
 ]
 
 cc = meson.get_compiler('c')
@@ -86,7 +77,7 @@ install_data(sources: 'bootman.conf', install_dir : get_option('sysconfdir'))
 
 executable(
   'bootman',
-  sources: furios_recovery_sources + squeek2lvgl_sources + lvgl_sources + lv_drivers_sources,
+  sources: furios_recovery_sources + lvgl_sources + lv_drivers_sources,
   include_directories: ['lvgl', 'lv_drivers'],
   dependencies: furios_recovery_dependencies,
   install: true
