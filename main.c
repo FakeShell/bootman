@@ -52,6 +52,7 @@
 #include <sys/reboot.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 
 #define MAX_PARTITIONS 50
 #define MAX_LINE_LENGTH 256
