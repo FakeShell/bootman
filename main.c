@@ -57,7 +57,7 @@
 #define MAX_LINE_LENGTH 256
 #define PERSIST_PARTITION "/dev/disk/by-partlabel/furios_persist"
 #define MOUNT_POINT "/furios_persist"
-#define PARTITIONS_FILE "/furios_persist/partitions"
+#define PARTITIONS_FILE "/furios_persist/bootman/partitions"
 
 typedef struct {
     char *name;
@@ -360,7 +360,7 @@ static int check_and_flash_partition(const char *partition_name, char *error_msg
 
     sync();
 
-    FILE *next_boot = fopen("/furios_persist/next-boot", "w");
+    FILE *next_boot = fopen("/furios_persist/bootman/next-boot", "w");
     if (!next_boot) {
         snprintf(error_msg, error_msg_size, "Failed to create next-boot file");
         umount(mount_point);
@@ -487,7 +487,8 @@ static PartitionList* read_partition_entries(void) {
     FILE *fp = fopen(PARTITIONS_FILE, "r");
     if (!fp) {
         printf("Failed to open partitions file: %s\n", strerror(errno));
-        if (!is_mounted) umount(MOUNT_POINT);
+        if (!is_mounted)
+            umount(MOUNT_POINT);
         free(list);
         return NULL;
     }
@@ -621,7 +622,7 @@ static void create_ui(uint32_t hor_res, uint32_t ver_res) {
         free_partition_list(list);
         free(list);
     } else {
-        printf("No partitions found in persist");
+        printf("No partitions found in persist\n");
         exit(1);
     }
 }
