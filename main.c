@@ -56,9 +56,9 @@
 
 #define MAX_PARTITIONS 50
 #define MAX_LINE_LENGTH 256
-#define PERSIST_PARTITION "/dev/disk/by-partlabel/furios_persist"
-#define MOUNT_POINT "/furios_persist"
-#define PARTITIONS_FILE "/furios_persist/bootman/partitions"
+#define PERSIST_PARTITION "/dev/disk/by-partlabel/vendor_boot_a"
+#define MOUNT_POINT "/furios-persist"
+#define PARTITIONS_FILE "/furios-persist/bootman/partitions"
 
 typedef struct {
     char *name;
@@ -361,7 +361,7 @@ static int check_and_flash_partition(const char *partition_name, char *error_msg
 
     sync();
 
-    FILE *next_boot = fopen("/furios_persist/bootman/next-boot", "w");
+    FILE *next_boot = fopen("/furios-persist/bootman/next-boot", "w");
     if (!next_boot) {
         snprintf(error_msg, error_msg_size, "Failed to create next-boot file");
         umount(mount_point);
