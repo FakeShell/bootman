@@ -138,13 +138,6 @@ static void partition_btn_clicked_cb(lv_event_t *event);
 static int check_and_flash_partition(const char *partition_name, char *error_msg, size_t error_msg_size);
 
 /**
- * Handle partition boot confirmation dialog events.
- *
- * @param event the event object
- */
-static void partition_boot_confirm_cb(lv_event_t *event);
-
-/**
  * Show error message dialog.
  *
  * @param message the error message to display
@@ -260,11 +253,17 @@ static void reboot_mbox_value_changed_cb(lv_event_t *event) {
 static void partition_btn_clicked_cb(lv_event_t *e) {
     char *partition_name = (char *)lv_event_get_user_data(e);
     if (partition_name) {
-        static const char *btns[] = { "Yes", "No", "" };
-        lv_obj_t *mbox = lv_msgbox_create(NULL, NULL, "Boot this partition?", btns, false);
-        lv_obj_set_size(mbox, 400, LV_SIZE_CONTENT);
-        lv_obj_add_event_cb(mbox, partition_boot_confirm_cb, LV_EVENT_VALUE_CHANGED, partition_name);
-        lv_obj_center(mbox);
+        printf("Preparing to boot partition: %s\n", partition_name);
+
+        char error_msg[512];
+        if (check_and_flash_partition(partition_name, error_msg, sizeof(error_msg)) == 0) {
+            printf("Successfully prepared boot for partition: %s\n", partition_name);
+            reboot_device();
+        } else {
+            show_error_dialog(error_msg);
+        }
+
+        free(partition_name);
     }
 }
 
@@ -374,30 +373,6 @@ static int check_and_flash_partition(const char *partition_name, char *error_msg
 
     umount(mount_point);
     return 0;
-}
-
-static void partition_boot_confirm_cb(lv_event_t *event) {
-    lv_obj_t *mbox = lv_event_get_current_target(event);
-    char *partition_name = (char *)lv_event_get_user_data(event);
-
-    if (lv_msgbox_get_active_btn(mbox) == 0) {
-        printf("Preparing to boot partition: %s\n", partition_name);
-
-        char error_msg[512];
-        if (check_and_flash_partition(partition_name, error_msg, sizeof(error_msg)) == 0) {
-            printf("Successfully prepared boot for partition: %s\n", partition_name);
-            static const char *btns[] = {"OK", ""};
-            lv_obj_t *success_mbox = lv_msgbox_create(NULL, "Success", "Boot partition prepared successfully. System will now reboot.", btns, false);
-            lv_obj_set_size(success_mbox, 400, LV_SIZE_CONTENT);
-            lv_obj_center(success_mbox);
-            lv_obj_add_event_cb(success_mbox, reboot_mbox_value_changed_cb, LV_EVENT_VALUE_CHANGED, NULL);
-        } else {
-            show_error_dialog(error_msg);
-        }
-    }
-
-    free(partition_name);
-    lv_msgbox_close(mbox);
 }
 
 static void show_error_dialog(const char *message) {
