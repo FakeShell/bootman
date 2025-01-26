@@ -268,15 +268,22 @@ static void partition_btn_clicked_cb(lv_event_t *e) {
 }
 
 static int check_and_flash_partition(const char *partition_name, char *error_msg, size_t error_msg_size) {
-    char lvm_path[256];
+    char device_path[256];
     char mount_point[] = "/mnt_tmp";
     char version[256];
     struct stat st;
     char cmd[1024];
 
-    snprintf(lvm_path, sizeof(lvm_path), "/dev/droidian/%s", partition_name);
-    if (stat(lvm_path, &st) != 0) {
-        snprintf(error_msg, error_msg_size, "Partition %s does not exist", lvm_path);
+    /* if this is a direct path then its likely some external device (such as an sdcard) */
+    if (partition_name[0] == '/') {
+        strncpy(device_path, partition_name, sizeof(device_path) - 1);
+        device_path[sizeof(device_path) - 1] = '\0';
+    } else {
+        snprintf(device_path, sizeof(device_path), "/dev/droidian/%s", partition_name);
+    }
+
+    if (stat(device_path, &st) != 0) {
+        snprintf(error_msg, error_msg_size, "Partition %s does not exist", device_path);
         return -1;
     }
 
@@ -287,7 +294,7 @@ static int check_and_flash_partition(const char *partition_name, char *error_msg
         }
     }
 
-    if (mount(lvm_path, mount_point, "ext4", 0, NULL) != 0) {
+    if (mount(device_path, mount_point, "ext4", 0, NULL) != 0) {
         snprintf(error_msg, error_msg_size, "Failed to mount partition: %s", strerror(errno));
         return -1;
     }
@@ -342,6 +349,7 @@ static int check_and_flash_partition(const char *partition_name, char *error_msg
 
     snprintf(cmd, sizeof(cmd), "dd if='%s' of=/dev/disk/by-partlabel/boot_a bs=4M", boot_image_path);
     printf("Executing: %s\n", cmd);
+
     if (system(cmd) != 0) {
         snprintf(error_msg, error_msg_size, "Failed to flash boot image");
         umount(mount_point);
@@ -369,6 +377,7 @@ static int check_and_flash_partition(const char *partition_name, char *error_msg
 
     fprintf(next_boot, "%s", partition_name);
     fclose(next_boot);
+
     sync();
 
     umount(mount_point);
