@@ -495,6 +495,11 @@ static PartitionList* read_partition_entries(void) {
         if (!token)
             continue;
 
+        if (strcmp(token, "ubuntu-userdata") == 0) {
+            printf("Skipping ubuntu-userdata partition\n");
+            continue;
+        }
+
         list->entries[list->count].name = strdup(token);
 
         token = strtok_r(NULL, "", &saveptr);
