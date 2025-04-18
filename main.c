@@ -1,7 +1,7 @@
 /**
  * Copyright 2021 Johannes Marbach
- * Copyright 2024 Bardia Moshiri
  * Copyright 2024 David Badiei
+ * Copyright 2025 Bardia Moshiri
  *
  * This file is part of bootman, hereafter referred to as the program.
  *
@@ -43,16 +43,20 @@
 
 #include "lvgl/lvgl.h"
 
-#include <stdlib.h>
 #include <signal.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
+#include <pthread.h>
+#include <dirent.h>
 
 #include <sys/reboot.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+
+#include <libinput.h>
+#include <linux/input.h>
 
 #define MAX_PARTITIONS 50
 #define MAX_LINE_LENGTH 256
@@ -80,6 +84,13 @@ static lv_disp_draw_buf_t disp_buf;
 bool is_alternate_theme = false;
 lv_obj_t *reboot_btn;
 lv_obj_t *shutdown_btn;
+
+/* Navigation variables */
+lv_obj_t **nav_buttons = NULL;
+int nav_button_count = 0;
+int current_button_index = 0;
+pthread_t key_thread;
+volatile bool key_thread_running = true;
 
 /**
  * Static prototypes
@@ -209,6 +220,51 @@ static void shutdown(void);
  * @param signum the signal's number
  */
 static void sigaction_handler(int signum);
+
+/**
+ * Initialize button navigation
+ *
+ * @param total_buttons Total number of buttons for navigation
+ */
+static void init_button_navigation(int total_buttons);
+
+/**
+ * Update button highlighting
+ */
+static void update_button_highlight(void);
+
+/**
+ * Check if a file is an input device
+ *
+ * @param path Path to the input device
+ * @return 1 if it's an input device, 0 otherwise
+ */
+static int is_input_device(const char *path);
+
+/**
+ * Initialize libinput and monitor for key events
+ *
+ * @param arg *arg is unused
+ */
+static void* key_input_thread(void *arg);
+
+/**
+ * Open callback for libinput
+ *
+ * @param path Device path to open
+ * @param flags Open flags
+ * @param user_data User data pointer (user_data is unused)
+ * @return File descriptor or negative error code
+ */
+static int open_restricted(const char *path, int flags, void *user_data);
+
+/**
+ * Close callback for libinput
+ *
+ * @param fd File descriptor to close
+ * @param user_data User data pointer (user_data is unused)
+ */
+static void close_restricted(int fd, void *user_data);
 
 /**
  * Static functions
@@ -409,6 +465,12 @@ static void shutdown(void) {
 
 static void sigaction_handler(int signum) {
     LV_UNUSED(signum);
+    key_thread_running = false;
+    pthread_join(key_thread, NULL);
+    if (nav_buttons != NULL) {
+        free(nav_buttons);
+        nav_buttons = NULL;
+    }
     terminal_reset_current_terminal();
     exit(0);
 }
@@ -521,12 +583,192 @@ static PartitionList* read_partition_entries(void) {
     return list;
 }
 
+static void init_button_navigation(int total_buttons) {
+    if (nav_buttons != NULL)
+        free(nav_buttons);
+
+    nav_buttons = calloc(total_buttons, sizeof(lv_obj_t *));
+    nav_button_count = total_buttons;
+    current_button_index = 0;
+
+    printf("Initialized navigation with %d buttons\n", total_buttons);
+}
+
+static void update_button_highlight(void) {
+    /* Remove highlight from all buttons first */
+    for (int i = 0; i < nav_button_count; i++) {
+        lv_obj_clear_state(nav_buttons[i], LV_STATE_FOCUSED);
+    }
+
+    /* Add highlight to current button */
+    lv_obj_add_state(nav_buttons[current_button_index], LV_STATE_FOCUSED);
+    printf("Button %d highlighted\n", current_button_index);
+}
+
+static int is_input_device(const char *path) {
+    int fd;
+    char name[256];
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0)
+        return 0;
+
+    if (ioctl(fd, EVIOCGNAME(sizeof(name)), name) < 0) {
+        close(fd);
+        return 0;
+    }
+
+    close(fd);
+    return 1;
+}
+
+static int open_restricted(const char *path, int flags, void *user_data) {
+    (void)user_data;
+    int fd = open(path, flags);
+    return fd < 0 ? -errno : fd;
+}
+
+static void close_restricted(int fd, void *user_data) {
+    (void)user_data;
+    close(fd);
+}
+
+static const struct libinput_interface interface = {
+    .open_restricted = open_restricted,
+    .close_restricted = close_restricted,
+};
+
+static void* key_input_thread(void *arg) {
+    (void)arg;
+    struct libinput *li;
+    struct libinput_event *event;
+    int rc;
+
+    li = libinput_path_create_context(&interface, NULL);
+    if (!li) {
+        fprintf(stderr, "Failed to initialize libinput context\n");
+        return NULL;
+    }
+
+    DIR *dir;
+    struct dirent *entry;
+    char path[PATH_MAX];
+
+    dir = opendir("/dev/input");
+    if (!dir) {
+        fprintf(stderr, "Failed to open /dev/input directory\n");
+        libinput_unref(li);
+        return NULL;
+    }
+
+    int device_count = 0;
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strncmp(entry->d_name, "event", 5) == 0) {
+            snprintf(path, sizeof(path), "/dev/input/%s", entry->d_name);
+            if (is_input_device(path)) {
+                struct libinput_device *device;
+                device = libinput_path_add_device(li, path);
+                if (!device) {
+                    fprintf(stderr, "Failed to add device: %s\n", path);
+                } else {
+                    printf("Added input device: %s\n", path);
+                    device_count++;
+                }
+            }
+        }
+    }
+
+    closedir(dir);
+
+    if (device_count == 0) {
+        fprintf(stderr, "No input devices were added\n");
+        libinput_unref(li);
+        return NULL;
+    }
+
+    printf("Monitoring %d input devices for key events\n", device_count);
+
+    libinput_dispatch(li);
+
+    while (key_thread_running) {
+        fd_set fds;
+        int fd = libinput_get_fd(li);
+
+        FD_ZERO(&fds);
+        FD_SET(fd, &fds);
+
+        rc = select(fd + 1, &fds, NULL, NULL, NULL);
+        if (rc < 0 && errno != EINTR) {
+            fprintf(stderr, "select() failed: %s\n", strerror(errno));
+            break;
+        }
+
+        if (rc > 0 && FD_ISSET(fd, &fds)) {
+            libinput_dispatch(li);
+
+            while ((event = libinput_get_event(li)) != NULL) {
+                if (libinput_event_get_type(event) == LIBINPUT_EVENT_KEYBOARD_KEY) {
+                    struct libinput_event_keyboard *key_event;
+                    enum libinput_key_state state;
+                    uint32_t key;
+
+                    key_event = libinput_event_get_keyboard_event(event);
+                    key = libinput_event_keyboard_get_key(key_event);
+                    state = libinput_event_keyboard_get_key_state(key_event);
+
+                    struct libinput_device *device = libinput_event_get_device(event);
+                    const char *device_name = libinput_device_get_name(device);
+
+                    printf("Key event from '%s': key=%d, state=%d\n",
+                           device_name, key, state);
+                    if (state == LIBINPUT_KEY_STATE_PRESSED) {
+                        switch (key) {
+                            case KEY_VOLUMEUP:
+                                /* Navigate up */
+                                if (current_button_index > 0)
+                                    current_button_index--;
+                                else
+                                    /* Wrap around to bottom */
+                                    current_button_index = nav_button_count - 1;
+                                update_button_highlight();
+                                break;
+                            case KEY_VOLUMEDOWN:
+                                /* Navigate down */
+                                if (current_button_index < nav_button_count - 1)
+                                    current_button_index++;
+                                else
+                                    /* Wrap around to top */
+                                    current_button_index = 0;
+                                update_button_highlight();
+                                break;
+                            case KEY_POWER:
+                                if (current_button_index >= 0 && current_button_index < nav_button_count)
+                                    lv_event_send(nav_buttons[current_button_index], LV_EVENT_CLICKED, NULL);
+                                break;
+                        }
+                    }
+                }
+                libinput_event_destroy(event);
+            }
+        }
+    }
+
+    libinput_unref(li);
+    return NULL;
+}
+
 static void create_partition_buttons(lv_obj_t *label_container, PartitionList *list) {
     if (!list)
         return;
 
     int base_y_offset = 150;
     int button_spacing = 120;
+
+    int total_buttons = list->count + 2;
+    init_button_navigation(total_buttons);
+
+    int btn_index = 0;
 
     for (size_t i = 0; i < list->count; i++) {
         lv_obj_t *btn = lv_btn_create(label_container);
@@ -542,6 +784,8 @@ static void create_partition_buttons(lv_obj_t *label_container, PartitionList *l
         lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, base_y_offset + (i * button_spacing));
         lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
         lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        nav_buttons[btn_index++] = btn;
     }
 
     reboot_btn = lv_btn_create(label_container);
@@ -554,6 +798,8 @@ static void create_partition_buttons(lv_obj_t *label_container, PartitionList *l
     lv_obj_set_flex_flow(reboot_btn, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(reboot_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
+    nav_buttons[btn_index++] = reboot_btn;
+
     shutdown_btn = lv_btn_create(label_container);
     lv_obj_set_width(shutdown_btn, LV_PCT(100));
     lv_obj_set_height(shutdown_btn, 100);
@@ -563,6 +809,10 @@ static void create_partition_buttons(lv_obj_t *label_container, PartitionList *l
     lv_obj_align(shutdown_btn, LV_ALIGN_TOP_MID, 0, base_y_offset + ((list->count + 1) * button_spacing));
     lv_obj_set_flex_flow(shutdown_btn, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(shutdown_btn, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+    nav_buttons[btn_index++] = shutdown_btn;
+
+    update_button_highlight();
 }
 
 static void create_ui(uint32_t hor_res, uint32_t ver_res) {
@@ -693,11 +943,21 @@ static void initialize_ui(void) {
 
     /* Create UI elements */
     create_ui(hor_res, ver_res);
+
+    /* Add custom focus style for button navigation */
+    static lv_style_t style_focus;
+    lv_style_init(&style_focus);
+    lv_style_set_border_width(&style_focus, 3);
+    lv_style_set_border_color(&style_focus, lv_palette_main(LV_PALETTE_YELLOW));
+    lv_style_set_border_opa(&style_focus, LV_OPA_COVER);
+
+    /* Apply the focus style to all buttons */
+    for (int i = 0; i < nav_button_count; i++) {
+        if (nav_buttons[i] != NULL)
+            lv_obj_add_style(nav_buttons[i], &style_focus, LV_STATE_FOCUSED);
+    }
 }
 
-/**
- * Main
- */
 int main(int argc, char *argv[]) {
     /* Parse command line options */
     cli_parse_opts(argc, argv, &cli_options);
@@ -715,18 +975,21 @@ int main(int argc, char *argv[]) {
 
     initialize_ui();
 
+    /* Start key input thread for hardware button navigation */
+    key_thread_running = true;
+    if (pthread_create(&key_thread, NULL, key_input_thread, NULL) != 0)
+        printf("Failed to create key input thread: %s\n", strerror(errno));
+    else
+        printf("Key input thread started successfully\n");
+
     /* Run lvgl in "tickless" mode */
-    while(1) {
+    while (1) {
         lv_task_handler();
         usleep(5000);
     }
 
     return 0;
 }
-
-/**
- * Tick generation
- */
 
 /**
  * Generate tick for LVGL.
