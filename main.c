@@ -63,10 +63,13 @@
 #define PERSIST_PARTITION "/dev/disk/by-partlabel/vendor_boot_a"
 #define MOUNT_POINT "/furios-persist"
 #define PARTITIONS_FILE "/furios-persist/bootman/partitions"
+#define DROIDIAN_VG_PATH "/dev/droidian"
+#define FURIOS_VG_PATH "/dev/furios"
 
 typedef struct {
     char *name;
     char *label;
+    char *vg_path;
 } PartitionEntry;
 
 typedef struct {
@@ -142,11 +145,20 @@ static void partition_btn_clicked_cb(lv_event_t *event);
  * Check partition, read version, and flash boot images.
  *
  * @param partition_name name of the partition to boot
+ * @param vg_path volume group path (DROIDIAN_VG_PATH or FURIOS_VG_PATH) or NULL for external paths
  * @param error_msg buffer to store error message on failure
  * @param error_msg_size size of error message buffer
  * @return 0 on success, -1 on failure with error_msg set
  */
-static int check_and_flash_partition(const char *partition_name, char *error_msg, size_t error_msg_size);
+static int check_and_flash_partition(const char *partition_name, const char *vg_path, char *error_msg, size_t error_msg_size);
+
+/**
+ * Check if a volume group exists
+ *
+ * @param vg_path Path to the volume group
+ * @return true if the volume group exists, false otherwise
+ */
+static bool volume_group_exists(const char *vg_path);
 
 /**
  * Show error message dialog.
@@ -164,13 +176,14 @@ static void error_mbox_event_cb(lv_event_t *event);
 
 /**
  * Read and parse partition entries from config file
+ * Checks for both FuriOS and Droidian volume groups
  *
  * @return PartitionList* List of parsed partitions or NULL on error
  */
 static PartitionList* read_partition_entries(void);
 
 /**
- * Check if system is encrypted by looking for droidian_encrypted mapper.
+ * Check if system is encrypted by looking for droidian_encrypted or furios_encrypted mapper.
  *
  * @return true if system is encrypted, false otherwise
  */
@@ -307,23 +320,26 @@ static void reboot_mbox_value_changed_cb(lv_event_t *event) {
 }
 
 static void partition_btn_clicked_cb(lv_event_t *e) {
-    char *partition_name = (char *)lv_event_get_user_data(e);
-    if (partition_name) {
-        printf("Preparing to boot partition: %s\n", partition_name);
+    PartitionEntry *entry = (PartitionEntry *)lv_event_get_user_data(e);
+    if (entry) {
+        printf("Preparing to boot partition: %s from VG: %s\n", entry->name,
+               entry->vg_path ? entry->vg_path : "external");
 
         char error_msg[512];
-        if (check_and_flash_partition(partition_name, error_msg, sizeof(error_msg)) == 0) {
-            printf("Successfully prepared boot for partition: %s\n", partition_name);
+        if (check_and_flash_partition(entry->name, entry->vg_path, error_msg, sizeof(error_msg)) == 0) {
+            printf("Successfully prepared boot for partition: %s\n", entry->name);
             reboot_device();
         } else {
             show_error_dialog(error_msg);
         }
 
-        free(partition_name);
+        free(entry->name);
+        free(entry->label);
+        free(entry);
     }
 }
 
-static int check_and_flash_partition(const char *partition_name, char *error_msg, size_t error_msg_size) {
+static int check_and_flash_partition(const char *partition_name, const char *vg_path, char *error_msg, size_t error_msg_size) {
     char device_path[256];
     char mount_point[] = "/mnt_tmp";
     char version[256];
@@ -331,11 +347,11 @@ static int check_and_flash_partition(const char *partition_name, char *error_msg
     char cmd[1024];
 
     /* if this is a direct path then its likely some external device (such as an sdcard) */
-    if (partition_name[0] == '/') {
+    if (partition_name[0] == '/' || vg_path == NULL) {
         strncpy(device_path, partition_name, sizeof(device_path) - 1);
         device_path[sizeof(device_path) - 1] = '\0';
     } else {
-        snprintf(device_path, sizeof(device_path), "/dev/droidian/%s", partition_name);
+        snprintf(device_path, sizeof(device_path), "%s/%s", vg_path, partition_name);
     }
 
     if (stat(device_path, &st) != 0) {
@@ -424,6 +440,14 @@ static int check_and_flash_partition(const char *partition_name, char *error_msg
 
     sync();
 
+    /* Store full path for partitions with volume group */
+    char next_boot_value[512];
+    if (partition_name[0] == '/' || vg_path == NULL) {
+        snprintf(next_boot_value, sizeof(next_boot_value), "%s", partition_name);
+    } else {
+        snprintf(next_boot_value, sizeof(next_boot_value), "%s/%s", vg_path, partition_name);
+    }
+
     FILE *next_boot = fopen("/furios-persist/bootman/next-boot", "w");
     if (!next_boot) {
         snprintf(error_msg, error_msg_size, "Failed to create next-boot file");
@@ -431,13 +455,18 @@ static int check_and_flash_partition(const char *partition_name, char *error_msg
         return -1;
     }
 
-    fprintf(next_boot, "%s", partition_name);
+    fprintf(next_boot, "%s", next_boot_value);
     fclose(next_boot);
 
     sync();
 
     umount(mount_point);
     return 0;
+}
+
+static bool volume_group_exists(const char *vg_path) {
+    struct stat st;
+    return (stat(vg_path, &st) == 0);
 }
 
 static void show_error_dialog(const char *message) {
@@ -477,7 +506,8 @@ static void sigaction_handler(int signum) {
 
 static bool is_encrypted(void) {
     struct stat st;
-    return (stat("/dev/mapper/droidian_encrypted", &st) == 0);
+    return (stat("/dev/mapper/droidian_encrypted", &st) == 0 ||
+            stat("/dev/mapper/furios_encrypted", &st) == 0);
 }
 
 static void free_partition_list(PartitionList *list) {
@@ -540,6 +570,10 @@ static PartitionList* read_partition_entries(void) {
         return NULL;
     }
 
+    /* Check which volume groups exist */
+    bool furios_vg_exists = volume_group_exists(FURIOS_VG_PATH);
+    bool droidian_vg_exists = volume_group_exists(DROIDIAN_VG_PATH);
+
     printf("Parsing partition entries:\n");
     char buffer[MAX_LINE_LENGTH];
     while (fgets(buffer, sizeof(buffer), fp) && list->count < MAX_PARTITIONS) {
@@ -562,7 +596,56 @@ static PartitionList* read_partition_entries(void) {
             continue;
         }
 
-        list->entries[list->count].name = strdup(token);
+        /* If the token is a direct path, use it as-is */
+        if (token[0] == '/') {
+            list->entries[list->count].name = strdup(token);
+            list->entries[list->count].vg_path = NULL; /* Direct path */
+        } else {
+            /* Add the partition to both VGs if they exist */
+            if (furios_vg_exists) {
+                list->entries[list->count].name = strdup(token);
+                list->entries[list->count].vg_path = FURIOS_VG_PATH;
+
+                /* Get the label */
+                token = strtok_r(NULL, "", &saveptr);
+                if (!token)
+                    list->entries[list->count].label = strdup(list->entries[list->count].name);
+                else
+                    list->entries[list->count].label = strdup(token);
+
+                printf("Added partition %zu: name='%s', label='%s'\n",
+                       list->count,
+                       list->entries[list->count].name,
+                       list->entries[list->count].label);
+
+                list->count++;
+                if (list->count >= MAX_PARTITIONS)
+                    break;
+            }
+
+            if (droidian_vg_exists) {
+                char *original_token = token;
+                list->entries[list->count].name = strdup(original_token ? original_token : str);
+                list->entries[list->count].vg_path = DROIDIAN_VG_PATH;
+
+                /* Reset the strtok_r for this iteration */
+                token = strtok_r(NULL, "", &saveptr);
+                if (!token)
+                    list->entries[list->count].label = strdup(list->entries[list->count].name);
+                else
+                    list->entries[list->count].label = strdup(token);
+
+                printf("Added partition %zu: name='%s', label='%s'\n",
+                       list->count,
+                       list->entries[list->count].name,
+                       list->entries[list->count].label);
+
+                list->count++;
+            }
+
+            /* Continue to the next line */
+            continue;
+        }
 
         token = strtok_r(NULL, "", &saveptr);
         if (!token)
@@ -570,7 +653,7 @@ static PartitionList* read_partition_entries(void) {
         else
             list->entries[list->count].label = strdup(token);
 
-        printf("Added partition %zu: name='%s', label='%s'\n",
+        printf("Added external partition %zu: name='%s', label='%s'\n",
                list->count,
                list->entries[list->count].name,
                list->entries[list->count].label);
