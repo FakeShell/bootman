@@ -332,11 +332,6 @@ static void partition_btn_clicked_cb(lv_event_t *e) {
         } else {
             show_error_dialog(error_msg);
         }
-
-        free(entry->name);
-        if (entry->label)
-            free(entry->label);
-        free(entry);
     } else {
         printf("PartitionEntry or name is NULL\n");
     }
