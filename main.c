@@ -321,9 +321,9 @@ static void reboot_mbox_value_changed_cb(lv_event_t *event) {
 
 static void partition_btn_clicked_cb(lv_event_t *e) {
     PartitionEntry *entry = (PartitionEntry *)lv_event_get_user_data(e);
-    if (entry) {
+    if (entry && entry->name) {
         printf("Preparing to boot partition: %s from VG: %s\n", entry->name,
-               entry->vg_path ? entry->vg_path : "external");
+               (entry->vg_path && *entry->vg_path) ? entry->vg_path : "external");
 
         char error_msg[512];
         if (check_and_flash_partition(entry->name, entry->vg_path, error_msg, sizeof(error_msg)) == 0) {
@@ -334,8 +334,11 @@ static void partition_btn_clicked_cb(lv_event_t *e) {
         }
 
         free(entry->name);
-        free(entry->label);
+        if (entry->label)
+            free(entry->label);
         free(entry);
+    } else {
+        printf("PartitionEntry or name is NULL\n");
     }
 }
 
@@ -861,8 +864,20 @@ static void create_partition_buttons(lv_obj_t *label_container, PartitionList *l
         lv_obj_t *btn_label = lv_label_create(btn);
         lv_label_set_text(btn_label, list->entries[i].label);
 
-        char *partition_name = strdup(list->entries[i].name);
-        lv_obj_add_event_cb(btn, partition_btn_clicked_cb, LV_EVENT_CLICKED, partition_name);
+        PartitionEntry *entry = malloc(sizeof(PartitionEntry));
+        if (entry == NULL) {
+            printf("failed to allocate memory for PartitionEntry\n");
+            continue;
+        }
+
+        entry->name = strdup(list->entries[i].name);
+        entry->label = strdup(list->entries[i].label);
+        if (list->entries[i].vg_path)
+            entry->vg_path = strdup(list->entries[i].vg_path);
+        else
+            entry->vg_path = NULL;
+
+        lv_obj_add_event_cb(btn, partition_btn_clicked_cb, LV_EVENT_CLICKED, entry);
 
         lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, base_y_offset + (i * button_spacing));
         lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
