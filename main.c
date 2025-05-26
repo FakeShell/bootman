@@ -321,19 +321,46 @@ static void reboot_mbox_value_changed_cb(lv_event_t *event) {
 
 static void partition_btn_clicked_cb(lv_event_t *e) {
     PartitionEntry *entry = (PartitionEntry *)lv_event_get_user_data(e);
-    if (entry && entry->name) {
-        printf("Preparing to boot partition: %s from VG: %s\n", entry->name,
-               (entry->vg_path && *entry->vg_path) ? entry->vg_path : "external");
-
-        char error_msg[512];
-        if (check_and_flash_partition(entry->name, entry->vg_path, error_msg, sizeof(error_msg)) == 0) {
-            printf("Successfully prepared boot for partition: %s\n", entry->name);
-            reboot_device();
-        } else {
-            show_error_dialog(error_msg);
-        }
-    } else {
+    if (!entry || !entry->name) {
         printf("PartitionEntry or name is NULL\n");
+        return;
+    }
+
+    /* Compute the selected-boot identifier exactly as we write it later */
+    char selected_boot[512];
+    if (entry->name[0] == '/' || entry->vg_path == NULL)
+        snprintf(selected_boot, sizeof(selected_boot), "%s", entry->name);
+    else
+        snprintf(selected_boot, sizeof(selected_boot), "%s/%s", entry->vg_path, entry->name);
+
+    /* Read old-boot file and compare */
+    const char *old_boot_file = "/furios-persist/bootman/old-boot";
+    FILE *oldf = fopen(old_boot_file, "r");
+    if (oldf) {
+        char old_boot_value[512];
+        if (fgets(old_boot_value, sizeof(old_boot_value), oldf)) {
+            /* strip newline */
+            old_boot_value[strcspn(old_boot_value, "\n")] = '\0';
+            if (strcmp(old_boot_value, selected_boot) == 0) {
+                /* Same as last boot. do nothing and let boot continue */
+                fclose(oldf);
+                exit(0);
+            }
+        }
+        fclose(oldf);
+    }
+
+    /* Otherwise proceed with normal flash-and-reboot */
+    printf("Preparing to boot partition: %s from VG: %s\n",
+           entry->name,
+           (entry->vg_path && *entry->vg_path) ? entry->vg_path : "external");
+
+    char error_msg[512];
+    if (check_and_flash_partition(entry->name, entry->vg_path, error_msg, sizeof(error_msg)) == 0) {
+        printf("Successfully prepared boot for partition: %s\n", entry->name);
+        reboot_device();
+    } else {
+        show_error_dialog(error_msg);
     }
 }
 
