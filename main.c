@@ -88,6 +88,9 @@ bool is_alternate_theme = false;
 lv_obj_t *reboot_btn;
 lv_obj_t *shutdown_btn;
 
+static PartitionEntry **allocated_entries = NULL;
+static size_t allocated_entries_count = 0;
+
 /* Navigation variables */
 lv_obj_t **nav_buttons = NULL;
 int nav_button_count = 0;
@@ -519,13 +522,38 @@ static void shutdown(void) {
 
 static void sigaction_handler(int signum) {
     LV_UNUSED(signum);
+
     key_thread_running = false;
-    pthread_join(key_thread, NULL);
+    if (pthread_join(key_thread, NULL) != 0) {
+        printf("Warning: Failed to join key input thread\n");
+    }
+
     if (nav_buttons != NULL) {
         free(nav_buttons);
         nav_buttons = NULL;
     }
+
+    if (allocated_entries) {
+        for (size_t i = 0; i < allocated_entries_count; i++) {
+            if (allocated_entries[i]) {
+                free(allocated_entries[i]->name);
+                free(allocated_entries[i]->label);
+                free(allocated_entries[i]->vg_path);
+                free(allocated_entries[i]);
+            }
+        }
+        free(allocated_entries);
+        allocated_entries = NULL;
+        allocated_entries_count = 0;
+    }
+
+    if (buf != NULL) {
+        free(buf);
+        buf = NULL;
+    }
+
     terminal_reset_current_terminal();
+
     exit(0);
 }
 
@@ -536,9 +564,12 @@ static bool is_encrypted(void) {
 }
 
 static void free_partition_list(PartitionList *list) {
-    for (size_t i = 0; i < list->count; i++) {
-        free(list->entries[i].name);
-        free(list->entries[i].label);
+    if (list) {
+        for (size_t i = 0; i < list->count; i++) {
+            free(list->entries[i].name);
+            free(list->entries[i].label);
+        }
+        free(list);
     }
 }
 
@@ -692,10 +723,19 @@ static PartitionList* read_partition_entries(void) {
 }
 
 static void init_button_navigation(int total_buttons) {
-    if (nav_buttons != NULL)
+    if (nav_buttons != NULL) {
         free(nav_buttons);
+        nav_buttons = NULL;
+    }
 
     nav_buttons = calloc(total_buttons, sizeof(lv_obj_t *));
+    if (!nav_buttons) {
+        printf("Failed to allocate memory for navigation buttons\n");
+        nav_button_count = 0;
+        current_button_index = 0;
+        return;
+    }
+
     nav_button_count = total_buttons;
     current_button_index = 0;
 
@@ -748,9 +788,10 @@ static const struct libinput_interface interface = {
 
 static void* key_input_thread(void *arg) {
     (void)arg;
-    struct libinput *li;
+    struct libinput *li = NULL;
     struct libinput_event *event;
     int rc;
+    DIR *dir = NULL;
 
     li = libinput_path_create_context(&interface, NULL);
     if (!li) {
@@ -758,7 +799,6 @@ static void* key_input_thread(void *arg) {
         return NULL;
     }
 
-    DIR *dir;
     struct dirent *entry;
     char path[PATH_MAX];
 
@@ -788,6 +828,7 @@ static void* key_input_thread(void *arg) {
     }
 
     closedir(dir);
+    dir = NULL;
 
     if (device_count == 0) {
         fprintf(stderr, "No input devices were added\n");
@@ -899,6 +940,23 @@ static void create_partition_buttons(lv_obj_t *label_container, PartitionList *l
         else
             entry->vg_path = NULL;
 
+        if (!entry->name || !entry->label ||
+            (list->entries[i].vg_path && !entry->vg_path)) {
+            printf("Memory allocation failed for partition entry\n");
+            free(entry->name);
+            free(entry->label);
+            free(entry->vg_path);
+            free(entry);
+            continue;
+        }
+
+        allocated_entries = realloc(allocated_entries,
+                                    (allocated_entries_count + 1) * sizeof(PartitionEntry *));
+        if (allocated_entries) {
+            allocated_entries[allocated_entries_count] = entry;
+            allocated_entries_count++;
+        }
+
         lv_obj_add_event_cb(btn, partition_btn_clicked_cb, LV_EVENT_CLICKED, entry);
 
         lv_obj_align(btn, LV_ALIGN_TOP_MID, 0, base_y_offset + (i * button_spacing));
@@ -977,10 +1035,9 @@ static void create_ui(uint32_t hor_res, uint32_t ver_res) {
 
     /* Create partition buttons */
     PartitionList *list = read_partition_entries();
-    create_partition_buttons(label_container, list);
     if (list) {
+        create_partition_buttons(label_container, list);
         free_partition_list(list);
-        free(list);
     } else {
         printf("No partitions found in persist\n");
         exit(1);
