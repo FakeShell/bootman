@@ -347,6 +347,7 @@ static void partition_btn_clicked_cb(lv_event_t *e) {
             if (strcmp(old_boot_value, selected_boot) == 0) {
                 /* Same as last boot. do nothing and let boot continue */
                 fclose(oldf);
+                indev_cleanup();
                 exit(0);
             }
         }
@@ -511,11 +512,13 @@ static void error_mbox_event_cb(lv_event_t *event) {
 }
 
 static void reboot_device(void) {
+    indev_cleanup();
     sync();
     reboot(RB_AUTOBOOT);
 }
 
 static void shutdown(void) {
+    indev_cleanup();
     sync();
     reboot(RB_POWER_OFF);
 }
@@ -553,6 +556,8 @@ static void sigaction_handler(int signum) {
     }
 
     terminal_reset_current_terminal();
+
+    indev_cleanup();
 
     exit(0);
 }
@@ -1000,6 +1005,7 @@ static void create_ui(uint32_t hor_res, uint32_t ver_res) {
     /* Check for encryption */
     if (is_encrypted()) {
         printf("System is encrypted, cannot proceed\n");
+        indev_cleanup();
         exit(1);
     }
 
@@ -1040,6 +1046,7 @@ static void create_ui(uint32_t hor_res, uint32_t ver_res) {
         free_partition_list(list);
     } else {
         printf("No partitions found in persist\n");
+        indev_cleanup();
         exit(1);
     }
 }

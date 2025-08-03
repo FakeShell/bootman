@@ -1,5 +1,6 @@
 /**
  * Copyright 2021 Johannes Marbach
+ * Copyright 2025 Bardia Moshiri
  *
  * This file is part of bootman, hereafter referred to as the program.
  *
@@ -26,6 +27,7 @@
 
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /**
  * Defines
@@ -152,6 +154,32 @@ static void libinput_read_cb(lv_indev_drv_t *indev_drv, lv_indev_data_t *data) {
 /**
  * Public functions
  */
+
+void indev_cleanup(void) {
+    for (int i = 0; i < num_keyboard_devs; ++i) {
+        if (keyboard_devs[i]) {
+            free(keyboard_devs[i]);
+            keyboard_devs[i] = NULL;
+        }
+    }
+    num_keyboard_devs = 0;
+
+    for (int i = 0; i < num_pointer_devs; ++i) {
+        if (pointer_devs[i]) {
+            free(pointer_devs[i]);
+            pointer_devs[i] = NULL;
+        }
+    }
+    num_pointer_devs = 0;
+
+    for (int i = 0; i < num_touchscreen_devs; ++i) {
+        if (touchscreen_devs[i]) {
+            free(touchscreen_devs[i]);
+            touchscreen_devs[i] = NULL;
+        }
+    }
+    num_touchscreen_devs = 0;
+}
 
 void indev_auto_connect(bool keyboard, bool pointer, bool touchscreen) {
     if (keyboard) {

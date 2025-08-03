@@ -1,5 +1,6 @@
 /**
  * Copyright 2021 Johannes Marbach
+ * Copyright 2025 Bardia Moshiri
  *
  * This file is part of bootman, hereafter referred to as the program.
  *
@@ -43,7 +44,7 @@ bool indev_is_keyboard_connected();
 
 /**
  * Set up an LVGL text area to receive input from currently connected keyboard devices.
- * 
+ *
  * @param textarea textarea widget
  */
 void indev_set_up_textarea_for_keyboard_input(lv_obj_t *textarea);
@@ -52,5 +53,11 @@ void indev_set_up_textarea_for_keyboard_input(lv_obj_t *textarea);
  * Set up the mouse cursor image for currently connected pointer devices.
  */
 void indev_set_up_mouse_cursor();
+
+/**
+ * Clean up allocated device paths and libinput resources.
+ * Should be called before program termination to prevent memory leaks.
+ */
+void indev_cleanup(void);
 
 #endif /* INDEV_H */
